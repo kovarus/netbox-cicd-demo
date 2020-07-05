@@ -44,4 +44,3 @@ and run `upgrade.sh`.
 # Related projects
 
 Please see [our wiki](https://github.com/netbox-community/netbox/wiki/Community-Contributions) for a list of relevant community projects.
-
