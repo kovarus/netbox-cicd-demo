@@ -86,9 +86,9 @@ podTemplate(
                         // sh './scripts/cibuild.sh'
                     }
                     stage('Tag and Push to Master') {
-                        sh 'export GIT_TAG=$(git describe --tags | awk -F\'[.]\' \'{print $1"."$2"."$3+1}\')'
-                        sh "echo ${GIT_TAG} >> git_tag.out"
-                        archiveArtifacts artifacts: 'git_tag.out', followSymlinks: false
+                        GIT_TAG = sh script: 'git describe --tags | awk -F\'[.]\' \'{print $1"."$2"."$3+1}\'', returnStdout: true
+                        sh "echo ${GIT_TAG} > ./${GIT_TAG}.tag"
+                        archiveArtifacts artifacts: "./${GIT_TAG}.tag", followSymlinks: false
                         sh "git tag ${GIT_TAG}"
                         withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
                             sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
