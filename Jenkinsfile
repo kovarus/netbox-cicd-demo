@@ -97,24 +97,35 @@ podTemplate(
                         // withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
                         //     sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
                         // }
-                    }
-                    stage('Get Versions and Active Side') {
-                        ACTIVE_SIDE = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='Active'].Value[]\" --output text", returnStdout: true
-                        if(ACTIVE_SIDE == 'Green') {
+                        ACTIVE_SIDE = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`Active`].Value[]' --output text", returnStdout: true
+                        BLUE_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`BlueVersion`].Value[]' --output text", returnStdout: true
+                        GREEN_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`GreenVersion`].Value[]' --output text", returnStdout: true
+
+                        if(ACTIVE_SIDE.trim() == 'Green') {
                             DEPLOY_TO = 'Blue'
-                        } else if(ACTIVE_SIDE == 'Blue') {
+                            BLUE_VER = GIT_TAG
+                        } else if(ACTIVE_SIDE.trim() == 'Blue') {
                             DEPLOY_TO = 'Green'
+                            GREEN_VER = GIT_TAG
                         } else {
                             DEPLOY_TO = 'Unknown'
+                            GREEN_VER = GIT_TAG
+                            BLUE_VER = GIT_TAG
                         }
+
+                        if(DEPLOY_TO == 'Unknown') {
+                            println("Infrastructure does not exist.")
+                        } else {
+                            println("Current Active Side is ${ACTIVE_SIDE.trim()}")
+                            println("Switching Active Side to ${DEPLOY_TO} with version ${GIT_TAG.trim()}")
+                        }
+
                         writeFile file: 'deploy_to.out', text: "${DEPLOY_TO}".trim()
                         archiveArtifacts artifacts: 'deploy_to.out', followSymlinks: false
 
-                        BLUE_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='BlueVersion'].Value[]\" --output text", returnStdout: true
                         writeFile file: 'blue_version.out', text: "${BLUE_VER}".trim()
                         archiveArtifacts artifacts: 'blue_version.out', followSymlinks: false
 
-                        GREEN_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='GreenVersion'].Value[]\" --output text", returnStdout: true
                         writeFile file: 'green_version.out', text: "${GREEN_VER}".trim()
                         archiveArtifacts artifacts: 'green_version.out', followSymlinks: false
                     }
