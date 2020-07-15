@@ -93,8 +93,6 @@ podTemplate(
                     }
                     stage('Tag and Push to Master') {
                         GIT_TAG = sh script: 'git describe --tags | awk -F\'[.]\' \'{print $1"."$2"."$3+1}\'', returnStdout: true
-                        writeFile file: 'git_tag.out', text: "${GIT_TAG}".trim()
-                        archiveArtifacts artifacts: 'git_tag.out', followSymlinks: false
                         // sh "git tag ${GIT_TAG}"
                         // withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
                         //     sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
@@ -102,6 +100,23 @@ podTemplate(
                     }
                     stage('Get Versions and Active Side') {
                         ACTIVE_SIDE = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='Active'].Value[]\" --output text", returnStdout: true
+                        if(ACTIVE_SIDE == 'Green') {
+                            DEPLOY_TO = 'Blue'
+                        } else if(ACTIVE_SIDE == 'Blue') {
+                            DEPLOY_TO = 'Green'
+                        } else {
+                            DEPLOY_TO = 'Unknown'
+                        }
+                        writeFile file: 'deploy_to.out', text: "${DEPLOY_TO}".trim()
+                        archiveArtifacts artifacts: 'deploy_to.out', followSymlinks: false
+
+                        BLUE_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='BlueVersion'].Value[]\" --output text", returnStdout: true
+                        writeFile file: 'blue_version.out', text: "${BLUE_VER}".trim()
+                        archiveArtifacts artifacts: 'blue_version.out', followSymlinks: false
+
+                        GREEN_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='GreenVersion'].Value[]\" --output text", returnStdout: true
+                        writeFile file: 'green_version.out', text: "${GREEN_VER}".trim()
+                        archiveArtifacts artifacts: 'green_version.out', followSymlinks: false
                     }
                 }
             }
