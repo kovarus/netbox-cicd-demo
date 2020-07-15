@@ -1,4 +1,10 @@
+properties([
+    parameters([
+        string(defaultValue: '', description: '', name: 'env_identifier', trim: false)
+    ])
+])
 podTemplate(
+    annotations: [podAnnotation(key: 'iam.amazonaws.com/role', value: "${env.IAM_ARN_GET_TAGS}")],
     containers: [
         containerTemplate(
             name: 'postgres',
@@ -45,7 +51,7 @@ podTemplate(
                     stage('Install Dependencies') {
                         // sh 'pip install --no-cache-dir -r requirements.txt'
                         // sh 'pip install --no-cache-dir pycodestyle'
-                        // sh 'apt-get update; apt-get install -y postgresql-client-9.6 redis-tools'
+                        sh 'apt-get update; apt-get install -y postgresql-client-9.6 redis-tools awscli'
                     }
                     stage('Test Environment') {
                         // sh 'psql --version'
@@ -87,12 +93,15 @@ podTemplate(
                     }
                     stage('Tag and Push to Master') {
                         GIT_TAG = sh script: 'git describe --tags | awk -F\'[.]\' \'{print $1"."$2"."$3+1}\'', returnStdout: true
-                        sh "echo ${GIT_TAG} > ./${GIT_TAG}.tag"
-                        archiveArtifacts artifacts: "./${GIT_TAG}.tag", followSymlinks: false
-                        sh "git tag ${GIT_TAG}"
-                        withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
-                            sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
-                        }
+                        writeFile file: 'git_tag.out', text: "${GIT_TAG}".trim()
+                        archiveArtifacts artifacts: 'git_tag.out', followSymlinks: false
+                        // sh "git tag ${GIT_TAG}"
+                        // withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
+                        //     sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
+                        // }
+                    }
+                    stage('Get Versions and Active Side') {
+                        ACTIVE_SIDE = sh script: "aws ec2 describe-instances --region us-west-2 --filters \"Name=tag:Name,Values=nb-rc*${params.env_identifier}*\" --query \"Reservations[*].Instances[*].Tags[?Key=='Active'].Value[]\" --output text", returnStdout: true
                     }
                 }
             }
