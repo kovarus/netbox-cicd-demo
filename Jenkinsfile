@@ -93,10 +93,10 @@ podTemplate(
                     }
                     stage('Tag and Push to Master') {
                         GIT_TAG = sh script: 'git describe --tags | awk -F\'[.]\' \'{print $1"."$2"."$3+1}\'', returnStdout: true
-                        // sh "git tag ${GIT_TAG}"
-                        // withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
-                        //     sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
-                        // }
+                        sh "git tag ${GIT_TAG}"
+                        withCredentials([usernamePassword(credentialsId: 'kovarus-github', passwordVariable: 'GITHUB_PASSWORD', usernameVariable: 'GITHUB_USERNAME')]) {
+                             sh "git push --tags https://${GITHUB_USERNAME}:${GITHUB_PASSWORD}@github.com/kovarus/netbox-cicd-demo HEAD:master"
+                        }
                         ACTIVE_SIDE = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`Active`].Value[]' --output text", returnStdout: true
                         BLUE_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`BlueVersion`].Value[]' --output text", returnStdout: true
                         GREEN_VER = sh script: "aws ec2 describe-instances --region us-west-2 --filters Name=tag:Name,Values='nb-rc*${params.env_identifier}*' Name=instance-state-name,Values=running --query 'Reservations[*].Instances[*].Tags[?Key==`GreenVersion`].Value[]' --output text", returnStdout: true
@@ -109,6 +109,7 @@ podTemplate(
                             GREEN_VER = GIT_TAG
                         } else {
                             DEPLOY_TO = 'Unknown'
+                            ACTIVE_SIDE= 'Unknown'
                             GREEN_VER = GIT_TAG
                             BLUE_VER = GIT_TAG
                         }
@@ -117,11 +118,14 @@ podTemplate(
                             println("Infrastructure does not exist.")
                         } else {
                             println("Current Active Side is ${ACTIVE_SIDE.trim()}")
-                            println("Switching Active Side to ${DEPLOY_TO} with version ${GIT_TAG.trim()}")
+                            println("Switching Active Side to ${DEPLOY_TO} with version ${GIT_TAG.trim()}")  
                         }
 
                         writeFile file: 'deploy_to.out', text: "${DEPLOY_TO}".trim()
                         archiveArtifacts artifacts: 'deploy_to.out', followSymlinks: false
+
+                        writeFile file: 'active_side.out', text: "${ACTIVE_SIDE}".trim()
+                        archiveArtifacts artifacts: 'active_side.out', followSymlinks: false
 
                         writeFile file: 'blue_version.out', text: "${BLUE_VER}".trim()
                         archiveArtifacts artifacts: 'blue_version.out', followSymlinks: false
